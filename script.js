@@ -99,13 +99,26 @@ function initWeather(resp){
         }
     ];
 
-    new WeatherTabsBlockView().render()
-        let body = document.createElement("div");
-        body.style.display = "flex";
-        body.style.justifyContent = "space-around";
-    
+    let weatherContainer = document.createElement("div");
+    document.body.appendChild(weatherContainer);
 
-    new TodayView(document.body).render(weather);
+
+    let tabsClickHandler = (key) => {
+        if (key == TAB_KEYS.TODAY) {
+            new TodayView(weatherContainer).render(weather);
+        } else if (key == TAB_KEYS.FORECAST){
+            weatherContainer.innerHTML = "privet"
+        }
+    }
+
+    let tabsContainer = document.createElement("div");
+    document.body.prepend(tabsContainer);
+    tabsContainer.style.display = "flex";
+    new WeatherTabsBlockView(tabsContainer, tabsClickHandler).render(tabsConfig);
+
+    tabsClickHandler(TAB_KEYS.TODAY);
+
+
 
 }
 
@@ -142,7 +155,14 @@ class WeatherTabsBlockView {
     }
 
     render(tabsConfig) {
+        tabsConfig.forEach((tabConfig) => {
+            let headerTab = document.createElement("div");
+            this.renderToHtmlElem.appendChild(headerTab);
+            headerTab.innerHTML = tabConfig.title;
+            headerTab.style.paddingRight = "10px";
+            
 
+        })
     }
 }
 
@@ -296,7 +316,7 @@ class TodayView {
         this.renderToHtmlElem.appendChild(currentWeatherBlock);
 
         let hourlyWeatherBlock = document.createElement("div");
-        new WeatherEveryThreeHoursCardView(hourlyWeatherBlock).render(everyThreeHoursWeather.getWeatherForecast(6));
+        new WeatherEveryThreeHoursCardView(hourlyWeatherBlock).render(todayWeatherData.getWeatherForecast(6));
         this.renderToHtmlElem.appendChild(hourlyWeatherBlock);
     }
 
