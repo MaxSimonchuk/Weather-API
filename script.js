@@ -30,7 +30,13 @@ class WeatherServiceAPI {
             method: 'GET',
             headers: {}
         }).then((res) => {
-            return res.json()
+            if (res.ok){
+                return res.json()
+            } else {
+                return res.json().then((redBody) => {
+                    throw redBody.message
+                })
+            }
         })
     }
 }
@@ -144,6 +150,10 @@ function initWeather(resp){
             .getWeatherByCoords(
                 new WeatherByCityDTO(cityName)
             ).then(initWeather)
+            .catch((errMessage) => {
+                weatherContainer.innerHTML = ''
+                weatherContainer.innerHTML = errMessage
+            })
     }
     new Search(searchContainer, onCityChanged).render(weather.getCityName());
 
