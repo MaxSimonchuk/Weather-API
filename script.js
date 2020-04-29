@@ -115,10 +115,11 @@ class Search {
         })
     }
 }
+
 class DayForecast {
     constructor(renderToHtmlElem){
         this.renderToHtmlElem = renderToHtmlElem;
-        this.selectedCardKey = null;
+        this.selectedCardKey = AppStorage.SELECTED_FORECAST_DAY_KEY;
     }
 
     render(weather){
@@ -127,7 +128,7 @@ class DayForecast {
         let cardContainer = this._renderCards(weather);
         this.renderToHtmlElem.appendChild(cardContainer);
 
-        let dayForecasts = weather.getForecastGroupdByDays()[this.selectedCardKey];
+        let dayForecasts = weather.getForecastGroupdByDays()[AppStorage.SELECTED_FORECAST_DAY_KEY];
         new WeatherEveryThreeHoursCardView(this.renderToHtmlElem)
             .render(dayForecasts, this._dayHumanize(dayForecasts[0]))
     }
@@ -140,7 +141,7 @@ class DayForecast {
 
         let forecastsGroupedByDay = weather.getForecastGroupdByDays();
 
-        if (this.selectedCardKey == null) {
+        if (!AppStorage.SELECTED_FORECAST_DAY_KEY) {
             this._setDefaultselectedCardKey(forecastsGroupedByDay);
         }
 
@@ -155,19 +156,19 @@ class DayForecast {
             })
 
             let onClickCallback = (key) => {
-                this.selectedCardKey = key;
+                AppStorage.SELECTED_FORECAST_DAY_KEY = key;
                 this.render(weather);
             };
 
             new DailyTemperatureCardView(cardContainer, onClickCallback)
-                .render(maxDailyTempState, key, this.selectedCardKey);
+                .render(maxDailyTempState, key, AppStorage.SELECTED_FORECAST_DAY_KEY);
 
         }
         return cardContainer;
     }
 
     _setDefaultselectedCardKey(daysGrouped) {
-        this.selectedCardKey = Object.keys(daysGrouped)[0]
+        AppStorage.SELECTED_FORECAST_DAY_KEY = Object.keys(daysGrouped)[0]
     }
 
     _dayHumanize(data){
@@ -217,6 +218,8 @@ class WeatherTabsBlockView {
     constructor(renderToHtmlElem,tabsClickHandler){
         this.renderToHtmlElem = renderToHtmlElem;
         this.tabsClickHandler = tabsClickHandler;
+
+        this.renderToHtmlElem.innerHTML = ''
     }
 
     render(tabsConfig) {
@@ -232,6 +235,9 @@ class WeatherTabsBlockView {
             headerTab.style.textAlign = "center ";
             headerTab.style.borderLeft = "1px solid white ";
 
+            if (AppStorage.SELECTED_NAV_TAB_KEY == tabConfig.key){
+                headerTab.style.color = "red";
+            }
             headerTab.addEventListener("click" , () => {
                  this.tabsClickHandler(tabConfig.key);
             })
@@ -388,94 +394,118 @@ class TodayView {
 
 }
 
-
-let weather = null;
-
 class AppStorage {
     static set SELECTED_NAV_TAB_KEY(setSelectedNavTabsKey){
         this.setSelectedNavTabsKey = setSelectedNavTabsKey
     }
 
     static get SELECTED_NAV_TAB_KEY(){
-        this.setSelectedNavTabsKey
+        return this.setSelectedNavTabsKey
     }
 
     static set SELECTED_FORECAST_DAY_KEY(setSelectedForecstDayKey){
         this.setSelectedForecstDayKey = setSelectedForecstDayKey
     }
     static get SELECTED_FORECAST_DAY_KEY(){
-        this.setSelectedForecstDayKey
+        return this.setSelectedForecstDayKey
     }
 
     static set CITY_WEATHER(weatherResp){
         this.weatherResp = weatherResp
     }
     static get CITY_WEATHER(){
-        this.weatherResp
+        return this.weatherResp
     }
 
 }
 class Main {
-    constructor(renderToHtmlElem){
-        this.renderToHtmlElem = renderToHtmlElem
-    }
-
-    render(resp){
-        weather = new WeatherModel(resp);
-        this.renderToHtmlElem.innerHTML = ''
-
-        let TAB_KEYS = {
+    static get TAB_KEYS() {
+        return {
             TODAY: "today",
             FORECAST: 'forecast'
         }
+    }
 
-        let tabsConfig = [
+    static get TABS_CONFIG() {
+        return [
             {
                 title: "Today",
-                key: TAB_KEYS.TODAY
+                key: Main.TAB_KEYS.TODAY
             },
             {
                 title: "5-day forecast",
-                key: TAB_KEYS.FORECAST
+                key: Main.TAB_KEYS.FORECAST
             }
-        ];
+        ]
+    }
 
-        let weatherContainer = document.createElement("div");
-        this.renderToHtmlElem.appendChild(weatherContainer);
+    constructor(renderToHtmlElem){
+        this.renderToHtmlElem = renderToHtmlElem;
+        AppStorage.SELECTED_NAV_TAB_KEY = Main.TAB_KEYS.TODAY;
+        // renderToHtmlElem.classList.add("yoyoy")
+    }
 
-        let tabsClickHandler = (key) => {
-            weatherContainer.innerHTML = ''
-            if (key == TAB_KEYS.TODAY) {
-                new TodayView(weatherContainer).render(weather);
-            } else if (key == TAB_KEYS.FORECAST){
-                new DayForecast(weatherContainer).render(weather);
-            }
+    render(cityWeather){
+        AppStorage.CITY_WEATHER = new WeatherModel(cityWeather);
+
+        this.renderToHtmlElem.innerHTML = ''
+        this._addContainersToDOM();
+
+        new Search(this.searchContainer, this._onCityChanged.bind(this))
+            .render(AppStorage.CITY_WEATHER.getCityName());
+
+        this.tabsContainer.style.backgroundColor = "black";
+        this.tabsContainer.style.display = "flex";
+        this.tabsContainer.style.width = "100%";
+        this.tabsContainer.style.paddingLeft = "25px";
+        this.tabsContainer.style.boxSizing = "border-box";
+
+        new WeatherTabsBlockView(this.tabsContainer, this._tabsClickHandler.bind(this))
+            .render(Main.TABS_CONFIG);
+
+        this._selectTab(AppStorage.SELECTED_NAV_TAB_KEY)
+    }
+
+
+    _addContainersToDOM() {
+        this.searchContainer = document.createElement("div");
+        this.renderToHtmlElem.appendChild(this.searchContainer);
+
+        this.tabsContainer = document.createElement("div");
+        this.renderToHtmlElem.appendChild(this.tabsContainer);
+
+        this.weatherContainer = document.createElement("div");
+        this.renderToHtmlElem.appendChild(this.weatherContainer);
+    }
+
+    _onCityChanged(cityName) {
+        WeatherServiceAPI
+            .getWeatherByCoords(
+                new WeatherByCityDTO(cityName)
+            )
+            .then(this.render.bind(this))
+            .catch((errMessage) => {
+                this.weatherContainer.innerHTML = errMessage
+            })
+    }
+
+    _selectTab(key) {
+        this._tabsClickHandler(key);
+    }
+
+    _tabsClickHandler(key) {
+        AppStorage.SELECTED_NAV_TAB_KEY = key
+
+        new WeatherTabsBlockView(this.tabsContainer, this._tabsClickHandler.bind(this))
+            .render(Main.TABS_CONFIG);
+
+        this.weatherContainer.innerHTML = ''
+
+        if (key == Main.TAB_KEYS.TODAY) {
+            new TodayView(this.weatherContainer).render(AppStorage.CITY_WEATHER);
+        } else if (key == Main.TAB_KEYS.FORECAST) {
+            new DayForecast(this.weatherContainer).render(AppStorage.CITY_WEATHER);
         }
-
-        let tabsContainer = document.createElement("div");
-        document.body.prepend(tabsContainer);
-        tabsContainer.style.backgroundColor = "black";
-        tabsContainer.style.display = "flex";
-        tabsContainer.style.width = "100%";
-        tabsContainer.style.paddingLeft = "25px";
-        tabsContainer.style.boxSizing = "border-box";
-        new WeatherTabsBlockView(tabsContainer, tabsClickHandler).render(tabsConfig);
-
-        let searchContainer = document.createElement("div");
-        this.renderToHtmlElem.prepend(searchContainer);
-        let onCityChanged = (cityName) => {
-            WeatherServiceAPI
-                .getWeatherByCoords(
-                    new WeatherByCityDTO(cityName)
-                ).then(this.render)
-                .catch((errMessage) => {
-                    weatherContainer.innerHTML = ''
-                    weatherContainer.innerHTML = errMessage
-                })
-        }
-        new Search(searchContainer, onCityChanged).render(weather.getCityName());
-
-        tabsClickHandler(TAB_KEYS.TODAY);
     }
 }
 
