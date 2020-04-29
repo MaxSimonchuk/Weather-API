@@ -100,91 +100,6 @@ class WeatherModel {
     }
 };
 
-let weather = null;
-
-function initWeather(resp){
-    weather = new WeatherModel(resp);
-    document.body.innerHTML = ''
-
-    let TAB_KEYS = {
-        TODAY: "today",
-        FORECAST: 'forecast'
-    }
-
-    let tabsConfig = [
-        {
-            title: "Today",
-            key: TAB_KEYS.TODAY
-        },
-        {
-            title: "5-day forecast",
-            key: TAB_KEYS.FORECAST
-        }
-    ];
-
-    let weatherContainer = document.createElement("div");
-    document.body.appendChild(weatherContainer);
-
-    let tabsClickHandler = (key) => {
-        weatherContainer.innerHTML = ''
-        if (key == TAB_KEYS.TODAY) {
-            new TodayView(weatherContainer).render(weather);
-        } else if (key == TAB_KEYS.FORECAST){
-            new DayForecast(weatherContainer).render(weather);
-        }
-    }
-
-    let tabsContainer = document.createElement("div");
-    document.body.prepend(tabsContainer);
-    tabsContainer.style.backgroundColor = "black";
-    tabsContainer.style.display = "flex";
-    tabsContainer.style.width = "100%";
-    tabsContainer.style.paddingLeft = "25px";
-    tabsContainer.style.boxSizing = "border-box";
-    new WeatherTabsBlockView(tabsContainer, tabsClickHandler).render(tabsConfig);
-
-    let searchContainer = document.createElement("div");
-    document.body.prepend(searchContainer);
-    let onCityChanged = (cityName) => {
-        WeatherServiceAPI
-            .getWeatherByCoords(
-                new WeatherByCityDTO(cityName)
-            ).then(initWeather)
-            .catch((errMessage) => {
-                weatherContainer.innerHTML = ''
-                weatherContainer.innerHTML = errMessage
-            })
-    }
-    new Search(searchContainer, onCityChanged).render(weather.getCityName());
-
-    tabsClickHandler(TAB_KEYS.TODAY);
-}
-
-if (!navigator.geolocation) {
-    WeatherServiceAPI
-        .getWeatherByCoords(
-            new WeatherByCityDTO(WeatherServiceAPI.NATIVE_CITY)
-        ).then(initWeather)
-} else {
-    navigator.geolocation.getCurrentPosition((position) => {
-    const lat = position.coords.latitude;
-    const lon = position.coords.longitude;
-
-    WeatherServiceAPI
-        .getWeatherByCoords(
-            new WeatherByCoordsDTO(lat, lon)
-        )
-        .then(initWeather)
-
-}, () => {
-        WeatherServiceAPI
-            .getWeatherByCoords(
-                new WeatherByCityDTO(WeatherServiceAPI.NATIVE_CITY)
-            )
-            .then(initWeather)
-    });
-}
-
 class Search {
     constructor(renderToHtmlElem, onSearchCahngeHandler){
         this.renderToHtmlElem = renderToHtmlElem;
@@ -471,4 +386,123 @@ class TodayView {
         this.renderToHtmlElem.appendChild(hourlyWeatherBlock);
     }
 
+}
+
+
+let weather = null;
+
+class AppStorage {
+    static set SELECTED_NAV_TAB_KEY(setSelectedNavTabsKey){
+        this.setSelectedNavTabsKey = setSelectedNavTabsKey
+    }
+
+    static get SELECTED_NAV_TAB_KEY(){
+        this.setSelectedNavTabsKey
+    }
+
+    static set SELECTED_FORECAST_DAY_KEY(setSelectedForecstDayKey){
+        this.setSelectedForecstDayKey = setSelectedForecstDayKey
+    }
+    static get SELECTED_FORECAST_DAY_KEY(){
+        this.setSelectedForecstDayKey
+    }
+
+    static set CITY_WEATHER(weatherResp){
+        this.weatherResp = weatherResp
+    }
+    static get CITY_WEATHER(){
+        this.weatherResp
+    }
+
+}
+class Main {
+    constructor(renderToHtmlElem){
+        this.renderToHtmlElem = renderToHtmlElem
+    }
+
+    render(resp){
+        weather = new WeatherModel(resp);
+        this.renderToHtmlElem.innerHTML = ''
+
+        let TAB_KEYS = {
+            TODAY: "today",
+            FORECAST: 'forecast'
+        }
+
+        let tabsConfig = [
+            {
+                title: "Today",
+                key: TAB_KEYS.TODAY
+            },
+            {
+                title: "5-day forecast",
+                key: TAB_KEYS.FORECAST
+            }
+        ];
+
+        let weatherContainer = document.createElement("div");
+        this.renderToHtmlElem.appendChild(weatherContainer);
+
+        let tabsClickHandler = (key) => {
+            weatherContainer.innerHTML = ''
+            if (key == TAB_KEYS.TODAY) {
+                new TodayView(weatherContainer).render(weather);
+            } else if (key == TAB_KEYS.FORECAST){
+                new DayForecast(weatherContainer).render(weather);
+            }
+        }
+
+        let tabsContainer = document.createElement("div");
+        document.body.prepend(tabsContainer);
+        tabsContainer.style.backgroundColor = "black";
+        tabsContainer.style.display = "flex";
+        tabsContainer.style.width = "100%";
+        tabsContainer.style.paddingLeft = "25px";
+        tabsContainer.style.boxSizing = "border-box";
+        new WeatherTabsBlockView(tabsContainer, tabsClickHandler).render(tabsConfig);
+
+        let searchContainer = document.createElement("div");
+        this.renderToHtmlElem.prepend(searchContainer);
+        let onCityChanged = (cityName) => {
+            WeatherServiceAPI
+                .getWeatherByCoords(
+                    new WeatherByCityDTO(cityName)
+                ).then(this.render)
+                .catch((errMessage) => {
+                    weatherContainer.innerHTML = ''
+                    weatherContainer.innerHTML = errMessage
+                })
+        }
+        new Search(searchContainer, onCityChanged).render(weather.getCityName());
+
+        tabsClickHandler(TAB_KEYS.TODAY);
+    }
+}
+
+let main = new Main(document.body)
+
+if (!navigator.geolocation) {
+    WeatherServiceAPI
+        .getWeatherByCoords(
+            new WeatherByCityDTO(WeatherServiceAPI.NATIVE_CITY)
+        ).then(main.render.bind(main))
+} else {
+    navigator.geolocation.getCurrentPosition((position) => {
+
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        WeatherServiceAPI
+            .getWeatherByCoords(
+                new WeatherByCoordsDTO(lat, lon)
+            )
+            .then(main.render.bind(main))
+
+    }, () => {
+        WeatherServiceAPI
+            .getWeatherByCoords(
+                new WeatherByCityDTO(WeatherServiceAPI.NATIVE_CITY)
+            )
+            .then(main.render.bind(main))
+    });
 }
