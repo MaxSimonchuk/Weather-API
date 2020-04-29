@@ -33,12 +33,7 @@ class WeatherServiceAPI {
             return res.json()
         })
     }
-
-
 }
-
-
-
 
 class WeatherModel {
     constructor(resp) {
@@ -86,6 +81,10 @@ class WeatherModel {
         },{})
     }
 
+    getCityName(){
+        return this.resp.city.name
+    }
+
     _getCurrentDayDuration(sunset, sunrize){
          let res = moment.utc(
                 moment(new Date(sunset), "HH:mm:ss")
@@ -93,15 +92,13 @@ class WeatherModel {
          ).format("HH:mm")
         return res
     }
-
-
-
 };
 
 let weather = null;
 
 function initWeather(resp){
     weather = new WeatherModel(resp);
+    document.body.innerHTML = ''
 
     let TAB_KEYS = {
         TODAY: "today",
@@ -122,7 +119,6 @@ function initWeather(resp){
     let weatherContainer = document.createElement("div");
     document.body.appendChild(weatherContainer);
 
-
     let tabsClickHandler = (key) => {
         weatherContainer.innerHTML = ''
         if (key == TAB_KEYS.TODAY) {
@@ -139,9 +135,17 @@ function initWeather(resp){
     tabsContainer.style.width = "100%";
     tabsContainer.style.paddingLeft = "25px";
     tabsContainer.style.boxSizing = "border-box";
-
-
     new WeatherTabsBlockView(tabsContainer, tabsClickHandler).render(tabsConfig);
+
+    let searchContainer = document.createElement("div");
+    document.body.prepend(searchContainer);
+    let onCityChanged = (cityName) => {
+        WeatherServiceAPI
+            .getWeatherByCoords(
+                new WeatherByCityDTO(cityName)
+            ).then(initWeather)
+    }
+    new Search(searchContainer, onCityChanged).render(weather.getCityName());
 
     tabsClickHandler(TAB_KEYS.TODAY);
 }
@@ -171,6 +175,21 @@ if (!navigator.geolocation) {
     });
 }
 
+class Search {
+    constructor(renderToHtmlElem, onSearchCahngeHandler){
+        this.renderToHtmlElem = renderToHtmlElem;
+        this.onSearchCahngeHandler = onSearchCahngeHandler;
+    }
+
+    render(city){
+        let search = document.createElement("input");
+        search.value = city;
+        this.renderToHtmlElem.appendChild(search);
+        search.addEventListener('change', (event) => {
+            this.onSearchCahngeHandler(event.target.value) ;
+        })
+    }
+}
 class DayForecast {
     constructor(renderToHtmlElem){
         this.renderToHtmlElem = renderToHtmlElem;
@@ -269,7 +288,6 @@ class DailyTemperatureCardView {
     }
 }
 
-
 class WeatherTabsBlockView {
     constructor(renderToHtmlElem,tabsClickHandler){
         this.renderToHtmlElem = renderToHtmlElem;
@@ -297,9 +315,7 @@ class WeatherTabsBlockView {
     }
 }
 
-
 // Current Block
-
 class TodayWeatherCardView {
     constructor(renderToHtmlElem) {
         this.renderToHtmlElem = renderToHtmlElem;
@@ -361,7 +377,6 @@ class TodayWeatherCardView {
 }
 
 // Hourly Block
-
 class WeatherEveryThreeHoursCardView {
     constructor(renderToHtmlElem){
         this.renderToHtmlElem = renderToHtmlElem;
@@ -432,9 +447,6 @@ class WeatherEveryThreeHoursCardView {
     }
 }
 
-
-
-
 class TodayView {
     constructor(renderToHtmlElem) {
         this.renderToHtmlElem = renderToHtmlElem;
@@ -450,5 +462,3 @@ class TodayView {
     }
 
 }
-
-
