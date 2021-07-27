@@ -15,6 +15,9 @@ class WeatherServiceAPI {
     static get WEATHER_API_URL(){ return "https://api.openweathermap.org/data/2.5/forecast"}
     static get API_KEY(){         return '58e1daad96f3ccaf0f9f626eaad3bb98'}
     static get NATIVE_CITY(){     return 'Cherkasy'}
+    static get ICON_URL(){
+        return "http://openweathermap.org/img/wn"
+    }
 
     constructor() {}
 
@@ -39,6 +42,10 @@ class WeatherServiceAPI {
             }
         })
     }
+
+    static getIconUrl(iconName){
+        return `${WeatherServiceAPI.ICON_URL}/${iconName}@2x.png`
+    }
 }
 
 class WeatherModel {
@@ -55,9 +62,14 @@ class WeatherModel {
     getCurrentWeatherDesc(){
         return this.getCurrentWeather().weather[0].description;
     }
-
+    getCurrentWeatherIcon(){
+        return this.getCurrentWeather().weather[0].icon;
+    }
     getCurrentWeatherTemp() {
-        return this.getCurrentWeather().main.temp;
+        return this.getCurrentWeather().main.temp.toFixed(0);
+    }
+    getCurrentWeatherRealFeel() {
+        return this.getCurrentWeather().main.feels_like;
     }
 
     getCurrentDaySunTime() {
@@ -66,8 +78,8 @@ class WeatherModel {
         let durration = this._getCurrentDayDuration(sunset, sunrise);
 
         return {
-            sunrise: new Date(sunrise),
-            sunset: new Date(sunset),
+            sunrise: moment(new Date(sunrise), "HH:mm:ss").format("h:mm A"),
+            sunset: moment(new Date(sunset), "HH:mm:ss").format("h:mm A"),
             durration: durration
         }
     }
@@ -95,7 +107,7 @@ class WeatherModel {
          let res = moment.utc(
                 moment(new Date(sunset), "HH:mm:ss")
                  .diff(moment(new Date (sunrize),"HH:mm:ss"))
-         ).format("HH:mm")
+         ).format("HH:mm ")
         return res
     }
 };
@@ -109,6 +121,7 @@ class Search {
     render(city){
         let search = document.createElement("input");
         search.value = city;
+        search.classList.add("search_city");
         this.renderToHtmlElem.appendChild(search);
         search.addEventListener('change', (event) => {
             this.onSearchCahngeHandler(event.target.value) ;
@@ -135,9 +148,7 @@ class DayForecast {
 
     _renderCards(weather) {
         let cardContainer = document.createElement("div");
-        cardContainer.style.display = "flex";
-        cardContainer.style.justifyContent = "space-around";
-
+        cardContainer.classList.add("card_container")
 
         let forecastsGroupedByDay = weather.getForecastGroupdByDays();
 
@@ -162,7 +173,6 @@ class DayForecast {
 
             new DailyTemperatureCardView(cardContainer, onClickCallback)
                 .render(maxDailyTempState, key, AppStorage.SELECTED_FORECAST_DAY_KEY);
-
         }
         return cardContainer;
     }
@@ -182,33 +192,39 @@ class DailyTemperatureCardView {
         this.onClickCallback = onClickCallback;
     }
 
-
     render(dayData, key , selectedCardKey){
         let cardBody = document.createElement("div");
+        cardBody.classList.add("card_body")
 
         cardBody.addEventListener("click", () => {
             this.onClickCallback(key);
         });
 
         if(key == selectedCardKey){
-            cardBody.style.border = '2px solid black'
+            cardBody.classList.add("active_tabs")
         }
 
         let cardBodyDay = document.createElement("div")
         cardBodyDay.innerHTML = moment(dayData.dt_txt).format('dddd');
         cardBody.appendChild(cardBodyDay);
+        cardBodyDay.classList.add("card_body-day", "main_text")
 
         let cardBodyData = document.createElement("div")
-        cardBodyData.innerHTML = dayData.dt_txt;
+        cardBodyData.innerHTML = moment(dayData.dt_txt).format("MMM D");
         cardBody.appendChild(cardBodyData);
+        cardBodyData.classList.add("card_body-data", "main_text")
+
+        new Icon(cardBody).render(dayData.weather[0].icon)
 
         let cardBodyTemp = document.createElement("div");
-        cardBodyTemp.innerHTML = dayData.main.temp_max
+        cardBodyTemp.innerHTML = dayData.main.temp_max.toFixed(0)+ "°C";
         cardBody.appendChild(cardBodyTemp);
+        cardBodyTemp.classList.add("temp_block", "main_text");
 
         let cardBodyWeather = document.createElement("div");
         cardBodyWeather.innerHTML = dayData.weather[0].description
         cardBody.appendChild(cardBodyWeather);
+        cardBodyWeather.classList.add("card_body-weather", "main_text");
 
         this.renderToHtmlElem.appendChild(cardBody);
     }
@@ -226,26 +242,40 @@ class WeatherTabsBlockView {
         tabsConfig.forEach((tabConfig) => {
             let headerTab = document.createElement("div");
             this.renderToHtmlElem.appendChild(headerTab);
-
             headerTab.innerHTML = tabConfig.title;
-            headerTab.style.paddingRight = "10px";
-            headerTab.style.color = "white";
-            headerTab.style.width = "100px";
-            headerTab.style.padding = "10px ";
-            headerTab.style.textAlign = "center ";
-            headerTab.style.borderLeft = "1px solid white ";
+            headerTab.classList.add("header_tab", "main_text")
 
             if (AppStorage.SELECTED_NAV_TAB_KEY == tabConfig.key){
-                headerTab.style.color = "red";
+                headerTab.classList.add("tab_active")
             }
             headerTab.addEventListener("click" , () => {
                  this.tabsClickHandler(tabConfig.key);
             })
         })
-
     }
 }
 
+class Icon {
+    constructor(renderToHtml){
+        this.renderToHtml = renderToHtml
+    }
+
+    render(iconName){
+        let iconBlocks = document.createElement("div");
+        let img = document.createElement("img");
+        img.src = WeatherServiceAPI.getIconUrl(iconName);
+        iconBlocks.appendChild(img);
+        this.renderToHtml.appendChild(iconBlocks);
+    }
+
+    static getHtml(iconName){
+        let iconBlocks = document.createElement("div");
+        let img = document.createElement("img");
+        img.src = WeatherServiceAPI.getIconUrl(iconName);
+        iconBlocks.appendChild(img);
+        return iconBlocks.innerHTML
+    }
+}
 // Current Block
 class TodayWeatherCardView {
     constructor(renderToHtmlElem) {
@@ -256,51 +286,59 @@ class TodayWeatherCardView {
         let header = this._renderHeader(todayWeatherData);
         this.renderToHtmlElem.appendChild(header);
 
-
         let body = document.createElement("div");
-        body.style.display = "flex";
-        body.style.justifyContent = "space-around";
-
+        body.classList.add("current_block-info")
 
         let iconBlock = document.createElement("div");
         iconBlock.innerHTML = todayWeatherData.getCurrentWeatherDesc();
         body.appendChild(iconBlock);
+        iconBlock.classList.add("icon_block", "main_text")
+        new Icon(iconBlock).render(todayWeatherData.getCurrentWeatherIcon())
 
         let temperatureBlock = document.createElement("div");
-        temperatureBlock.innerHTML = todayWeatherData.getCurrentWeatherTemp();
+        temperatureBlock.innerHTML = todayWeatherData.getCurrentWeatherTemp() + "°C";
         body.appendChild(temperatureBlock);
+        temperatureBlock.classList.add("temp_block", "main_text")
+
+        let temperatureBlockRealFeel = document.createElement("div");
+        temperatureBlockRealFeel.innerHTML = "Real Feel " + todayWeatherData.getCurrentWeatherRealFeel().toFixed(0) + "°";
+        temperatureBlock.appendChild(temperatureBlockRealFeel);
+        temperatureBlockRealFeel.classList.add("real-feel_block", "main_text")
 
         let detailsBlock = document.createElement("div");
         body.appendChild(detailsBlock);
-        let sunsetBlock = document.createElement("div");
-        sunsetBlock.innerHTML = todayWeatherData.getCurrentDaySunTime().sunset;
-        detailsBlock.appendChild(sunsetBlock);
+        detailsBlock.classList.add("details_block")
 
         let sunriseBlock = document.createElement("div");
-        sunriseBlock.innerHTML = todayWeatherData.getCurrentDaySunTime().sunrise;
+        sunriseBlock.innerHTML = "Sunrise: " + todayWeatherData.getCurrentDaySunTime().sunrise;
         detailsBlock.appendChild(sunriseBlock)
+        sunriseBlock.classList.add("block_sunr-suns-dur", "main_text")
+
+        let sunsetBlock = document.createElement("div");
+        sunsetBlock.innerHTML =  "Sunset: " + todayWeatherData.getCurrentDaySunTime().sunset;
+        detailsBlock.appendChild(sunsetBlock);
+        sunsetBlock.classList.add("block_sunr-suns-dur", "main_text")
 
         let durationBlock = document.createElement("div");
-        durationBlock.innerHTML = todayWeatherData.getCurrentDaySunTime().durration;
+        durationBlock.innerHTML = "Duration: " + todayWeatherData.getCurrentDaySunTime().durration;
         detailsBlock.appendChild(durationBlock);
+        durationBlock.classList.add("block_sunr-suns-dur", "main_text")
 
         this.renderToHtmlElem.appendChild(body);
-
     }
 
     _renderHeader(todayWeatherData) {
         let header = document.createElement("div");
-        header.style.display = "flex";
-        header.style.justifyContent = "space-between";
-        header.style.marginBottom = "15px";
+        header.classList.add("current_header")
 
         let headerTitle = document.createElement("div");
         headerTitle.innerHTML = "CURRENT WEATHER"
-        headerTitle.style.color = "#20a1ff";
+        headerTitle.classList.add("current_title", "main_text")
 
         let headerDate = document.createElement("div");
-        headerDate.innerHTML = todayWeatherData.getCurrentWeather().dt_txt;
-        headerDate.style.color = "#20a1ff";
+        headerDate.innerHTML = moment(todayWeatherData.dt_txt).format('DD.MM.YYYY');
+        headerDate.classList.add("current_title", "main_text")
+
         header.appendChild(headerTitle);
         header.appendChild(headerDate);
         return header
@@ -313,52 +351,30 @@ class WeatherEveryThreeHoursCardView {
         this.renderToHtmlElem = renderToHtmlElem;
     }
 
-    render(forecasts, currentDayName = 'Today') {
+    render(forecasts, currentDayName = 'TODAY') {
         let header = this._renderHeader();
         this.renderToHtmlElem.appendChild(header);
 
         let body = document.createElement("div");
-        body.style.display = "flex";
-        body.style.flexDirection = "column";
+        body.appendChild(header);
+        body.classList.add("hourly_block-info")
 
-        let titles = [
-            {
-                title: currentDayName,
-                data: forecasts.map((forecast) => { return forecast.dt_txt })
-            },
-            {
-                title: 'forecast',
-                data: forecasts.map((forecast) => { return forecast.weather[0].description })
-            },
-            {
-                title: 'Temp(℃)',
-                data: forecasts.map((forecast) => { return forecast.main.temp })
-            },
-            {
-                title: 'RealFeel',
-                data: forecasts.map((forecast) => { return forecast.main.feels_like })
-            },
-            {
-                title: 'Wind(km/h)',
-                data: forecasts.map((forecast) => { return forecast.wind.speed })
-            }]
+        let tableConfig = this.tableConfig(currentDayName, forecasts)
 
-        titles.forEach((config) => {
+        tableConfig.forEach((config) => {
             let newRow = document.createElement('div');
-            newRow.style.display = "flex";
-            newRow.style.justifyContent = "space-between";
+            newRow.classList.add("newrow_forecast")
             body.appendChild(newRow)
 
             let title = document.createElement('div');
-            title.style.width = "100px";
+            title.classList.add("today_block", "main_text")
             title.innerHTML = config.title
             newRow.appendChild(title)
 
             config.data.forEach((text) => {
                 let data = document.createElement('div');
-                data.style.width = "140px";
-                data.style.textAlign = "center";
-                data.style.marginBottom = "8px";
+                data.classList.add("forecast_table", "main_text")
+
                 data.innerHTML = text
                 newRow.appendChild(data)
             })
@@ -367,13 +383,50 @@ class WeatherEveryThreeHoursCardView {
         this.renderToHtmlElem.appendChild(body);
     }
 
+    tableConfig(currentDayName, forecasts) {
+        return [
+            {
+                title: currentDayName,
+                data: forecasts.map((forecast) => {
+                    return moment(forecast.dt_txt).format('ha')
+                })
+            },
+            {
+                title: '',
+                data: forecasts.map((forecast) => {
+                    return Icon.getHtml(forecast.weather[0].icon)
+                })
+            },
+            {
+                title: 'Forecast',
+                data: forecasts.map((forecast) => {
+                    return forecast.weather[0].description
+                })
+            },
+            {
+                title: 'Temp (°C)',
+                data: forecasts.map((forecast) => {
+                    return forecast.main.temp.toFixed(0) + "°"
+                })
+            },
+            {
+                title: 'RealFeel',
+                data: forecasts.map((forecast) => {
+                    return  forecast.main.feels_like.toFixed(0) + "°"
+                })
+            },
+            {
+                title: 'Wind(km/h)',
+                data: forecasts.map((forecast) => {
+                    return forecast.wind.speed.toFixed(0) + " ESE"
+                })
+            }];
+    }
+
     _renderHeader() {
         let header = document.createElement("div");
         header.innerHTML = "HOURLY";
-        header.style.color = "#20a1ff";
-
-        header.style.marginBottom = "15px";
-
+        header.classList.add("hourly_title", "main_text")
         return header;
     }
 }
@@ -386,12 +439,15 @@ class TodayView {
         let currentWeatherBlock = document.createElement("div");
         new TodayWeatherCardView(currentWeatherBlock).render(todayWeatherData);
         this.renderToHtmlElem.appendChild(currentWeatherBlock);
+        currentWeatherBlock.classList.add("current_block")
 
         let hourlyWeatherBlock = document.createElement("div");
         new WeatherEveryThreeHoursCardView(hourlyWeatherBlock).render(todayWeatherData.getWeatherForecast(6));
         this.renderToHtmlElem.appendChild(hourlyWeatherBlock);
-    }
+        hourlyWeatherBlock.classList.add("hourly_block")
 
+        this.renderToHtmlElem.classList.add("today_view");
+    }
 }
 
 class AppStorage {
@@ -418,6 +474,7 @@ class AppStorage {
     }
 
 }
+
 class Main {
     static get TAB_KEYS() {
         return {
@@ -442,7 +499,7 @@ class Main {
     constructor(renderToHtmlElem){
         this.renderToHtmlElem = renderToHtmlElem;
         AppStorage.SELECTED_NAV_TAB_KEY = Main.TAB_KEYS.TODAY;
-        // renderToHtmlElem.classList.add("yoyoy")
+        this.renderToHtmlElem.classList.add("wrapper")
     }
 
     render(cityWeather){
@@ -454,25 +511,25 @@ class Main {
         new Search(this.searchContainer, this._onCityChanged.bind(this))
             .render(AppStorage.CITY_WEATHER.getCityName());
 
-        this.tabsContainer.style.backgroundColor = "black";
-        this.tabsContainer.style.display = "flex";
-        this.tabsContainer.style.width = "100%";
-        this.tabsContainer.style.paddingLeft = "25px";
-        this.tabsContainer.style.boxSizing = "border-box";
-
         new WeatherTabsBlockView(this.tabsContainer, this._tabsClickHandler.bind(this))
             .render(Main.TABS_CONFIG);
 
         this._selectTab(AppStorage.SELECTED_NAV_TAB_KEY)
     }
 
-
     _addContainersToDOM() {
         this.searchContainer = document.createElement("div");
+        this.searchContainer.classList.add("header_search");
+
+        let titleHeader = document.createElement("div");
+        titleHeader.innerHTML = "MY WEATHER";
+        this.searchContainer.appendChild(titleHeader);
+        titleHeader.classList.add("header_title", "main_text");
         this.renderToHtmlElem.appendChild(this.searchContainer);
 
         this.tabsContainer = document.createElement("div");
         this.renderToHtmlElem.appendChild(this.tabsContainer);
+        this.tabsContainer.classList.add("tabs_container");
 
         this.weatherContainer = document.createElement("div");
         this.renderToHtmlElem.appendChild(this.weatherContainer);
@@ -486,6 +543,10 @@ class Main {
             .then(this.render.bind(this))
             .catch((errMessage) => {
                 this.weatherContainer.innerHTML = errMessage
+                this.weatherContainer.classList.add("message_none")
+                let pageNotFound = document.createElement("div");
+                this.weatherContainer.appendChild(pageNotFound);
+                pageNotFound.classList.add("block_page-notfound")
             })
     }
 
